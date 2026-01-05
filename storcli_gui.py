@@ -79,9 +79,9 @@ class StorCLIGUI:
         ttk.Button(cmd_frame, text="Status", width=12,
                   command=lambda: self.run_command("/c0 show pr")).grid(row=row_idx, column=1, padx=2, pady=2)
         ttk.Button(cmd_frame, text="ON", width=12,
-                  command=lambda: self.run_command("/c0 set patrolread=on")).grid(row=row_idx, column=2, padx=2, pady=2)
+                  command=self.start_patrol_read).grid(row=row_idx, column=2, padx=2, pady=2)
         ttk.Button(cmd_frame, text="OFF", width=12,
-                  command=lambda: self.run_command("/c0 set patrolread=off")).grid(row=row_idx, column=3, padx=2, pady=2)
+                  command=lambda: self.run_command("/c0 stop pr")).grid(row=row_idx, column=3, padx=2, pady=2)
         row_idx += 1
         
         # Consistency Check
@@ -144,6 +144,74 @@ class StorCLIGUI:
         )
         if response:
             self.run_command(cmd)
+    
+    def start_patrol_read(self):
+        """Enable and start patrol read with proper sequence"""
+        # Show warning about limitations
+        messagebox.showwarning(
+            "Patrol Read Limitation",
+            "Note: If RAID initialization is ongoing, patrol read cannot be used.\n\n"
+            "The system will now:\n"
+            "1. Enable manual patrol read mode\n"
+            "2. Start patrol read"
+        )
+        
+        # Execute commands in a thread
+        thread = threading.Thread(target=self._start_patrol_read_thread)
+        thread.daemon = True
+        thread.start()
+    
+    def _start_patrol_read_thread(self):
+        """Execute patrol read commands in sequence"""
+        try:
+            self.append_output(f"\n{'='*60}\n")
+            self.append_output(f"Enabling Patrol Read (2-step process)\n")
+            self.append_output(f"{'='*60}\n\n")
+            
+            # Step 1: Enable manual patrol read mode
+            self.append_output("Step 1: Enabling manual patrol read mode...\n")
+            cmd1 = f'"{self.storcli_path}" /c0 set patrolread=on mode=manual'
+            result1 = subprocess.run(
+                cmd1,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result1.returncode == 0:
+                self.append_output(result1.stdout)
+                self.append_output("✓ Manual patrol read mode enabled\n\n")
+            else:
+                self.append_output(f"ERROR (code {result1.returncode}):\n")
+                self.append_output(result1.stderr if result1.stderr else result1.stdout)
+                self.append_output("\n⚠ Failed to enable patrol read mode, aborting...\n")
+                return
+            
+            # Step 2: Start patrol read
+            self.append_output("Step 2: Starting patrol read...\n")
+            cmd2 = f'"{self.storcli_path}" /c0 start pr'
+            result2 = subprocess.run(
+                cmd2,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result2.returncode == 0:
+                self.append_output(result2.stdout)
+                self.append_output("\n✓ Patrol read started successfully\n")
+            else:
+                self.append_output(f"ERROR (code {result2.returncode}):\n")
+                self.append_output(result2.stderr if result2.stderr else result2.stdout)
+            
+            self.append_output(f"\n{'='*60}\n")
+            
+        except subprocess.TimeoutExpired:
+            self.append_output("ERROR: Timeout (>30s)\n")
+        except Exception as e:
+            self.append_output(f"ERROR: {str(e)}\n")
         
     def run_command(self, params):
         """Execute a storcli command in a separate thread"""
