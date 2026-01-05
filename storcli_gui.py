@@ -3,11 +3,24 @@ from tkinter import ttk, scrolledtext, messagebox
 import subprocess
 import threading
 import os
+import sys
+
+# Enable DPI awareness for Windows
+try:
+    from ctypes import windll
+    windll.shcore.SetProcessDpiAwareness(1)
+except:
+    pass
 
 class StorCLIGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("StorCLI Manager")
+        
+        # Force window to appear on top initially
+        self.root.lift()
+        self.root.attributes('-topmost', True)
+        self.root.after_idle(self.root.attributes, '-topmost', False)
         self.root.geometry("1280x1060")
         
         # Chemin vers storcli.exe (à modifier selon votre installation)
@@ -186,9 +199,16 @@ class StorCLIGUI:
         self.output_text.delete(1.0, tk.END)
 
 def main():
-    root = tk.Tk()
-    app = StorCLIGUI(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        app = StorCLIGUI(root)
+        print("StorCLI GUI started successfully")
+        root.mainloop()
+    except Exception as e:
+        print(f"ERROR: Failed to start GUI: {e}")
+        import traceback
+        traceback.print_exc()
+        input("Press Enter to exit...")
 
 if __name__ == "__main__":
     main()
