@@ -1,9 +1,10 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import ttk, scrolledtext, messagebox, filedialog
 import subprocess
 import threading
 import os
 import sys
+from datetime import datetime
 
 # Enable DPI awareness for Windows
 try:
@@ -54,7 +55,6 @@ class StorCLIGUI:
             ("Virtual Drives Detailed", "/c0/vAll show all", False),
             ("Physical Drives Info /c0", "/c0/eAll/sAll show all", False),
             ("Rebuild In Progress", "/c0/eAll/sAll show rebuild", False),
-            ("Event Logs", "/c0 show events", False),
             ("⚠️ CLEAR RAID Config /c0", "/c0/fall delete", True),
         ]
         
@@ -69,6 +69,13 @@ class StorCLIGUI:
                                command=lambda c=cmd: self.run_command(c))
             btn.grid(row=row_idx, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=2)
             row_idx += 1
+        
+        # Event Logs row with two buttons (View and Export)
+        ttk.Button(cmd_frame, text="View Event Logs",
+                  command=lambda: self.run_command("/c0 show events")).grid(row=row_idx, column=0, columnspan=1, sticky=(tk.W, tk.E), pady=2, padx=(0, 2))
+        ttk.Button(cmd_frame, text="Export Event Logs",
+                  command=self.export_event_logs).grid(row=row_idx, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2, padx=(2, 0))
+        row_idx += 1
         
         # Séparateur
         ttk.Separator(cmd_frame, orient='horizontal').grid(row=row_idx, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
@@ -265,6 +272,65 @@ class StorCLIGUI:
     def clear_output(self):
         """Clear the output area"""
         self.output_text.delete(1.0, tk.END)
+    
+    def export_event_logs(self):
+        """Export event logs to a text file"""
+        # Ask user where to save the file
+        default_filename = f"storcli_events_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            initialfile=default_filename,
+            title="Export Event Logs"
+        )
+        
+        if not filepath:
+            return  # User cancelled
+        
+        # Execute the command in a thread
+        thread = threading.Thread(target=self._export_event_logs_thread, args=(filepath,))
+        thread.daemon = True
+        thread.start()
+    
+    def _export_event_logs_thread(self, filepath):
+        """Execute event log export in a thread"""
+        try:
+            self.append_output(f"\n{'='*60}\n")
+            self.append_output(f"Exporting event logs to: {filepath}\n")
+            self.append_output(f"{'='*60}\n\n")
+            
+            cmd = f'"{self.storcli_path}" /c0 show events'
+            
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                # Write to file
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(f"StorCLI Event Logs Export\n")
+                    f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"{'='*60}\n\n")
+                    f.write(result.stdout)
+                
+                self.append_output(f"✓ Event logs successfully exported to:\n")
+                self.append_output(f"   {filepath}\n")
+                messagebox.showinfo("Export Successful", f"Event logs exported to:\n{filepath}")
+            else:
+                self.append_output(f"ERROR (code {result.returncode}):\n")
+                self.append_output(result.stderr if result.stderr else result.stdout)
+                messagebox.showerror("Export Failed", "Failed to retrieve event logs")
+            
+        except subprocess.TimeoutExpired:
+            self.append_output("ERROR: Timeout (>30s)\n")
+            messagebox.showerror("Export Failed", "Command timeout")
+        except Exception as e:
+            self.append_output(f"ERROR: {str(e)}\n")
+            messagebox.showerror("Export Failed", f"Error: {str(e)}")
 
 def main():
     try:
