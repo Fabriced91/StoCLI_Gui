@@ -48,33 +48,38 @@ class StorCLIGUI:
         
         # Command buttons
         commands = [
-            ("Show All Controllers", "/cAll show", False),
             ("Controller Info /c0", "/c0 show", False),
-            ("Show All Drives", "/cAll/eAll/sAll show", False),
             ("RAID Status /c0", "/c0/vAll show", False),
             ("Virtual Drives Detailed", "/c0/vAll show all", False),
-            ("Physical Drives Info /c0", "/c0/eAll/sAll show all", False),
             ("Rebuild In Progress", "/c0/eAll/sAll show rebuild", False),
-            ("⚠️ CLEAR RAID Config /c0", "/c0/fall delete", True),
         ]
         
         row_idx = 0
         for label, cmd, is_dangerous in commands:
-            if is_dangerous:
-                btn = ttk.Button(cmd_frame, text=label, 
-                               command=lambda c=cmd, l=label: self.confirm_dangerous_command(c, l))
-                btn.configure(style='Danger.TButton')
-            else:
-                btn = ttk.Button(cmd_frame, text=label, 
-                               command=lambda c=cmd: self.run_command(c))
+            btn = ttk.Button(cmd_frame, text=label, 
+                           command=lambda c=cmd: self.run_command(c))
             btn.grid(row=row_idx, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=2)
             row_idx += 1
+        
+        # Show All Drives and Physical Drives Info on same row
+        ttk.Button(cmd_frame, text="Show All Drives",
+                  command=lambda: self.run_command("/cAll/eAll/sAll show")).grid(row=row_idx, column=0, columnspan=1, sticky=(tk.W, tk.E), pady=2, padx=(0, 2))
+        ttk.Button(cmd_frame, text="Physical Drives Info /c0",
+                  command=lambda: self.run_command("/c0/eAll/sAll show all")).grid(row=row_idx, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2, padx=(2, 0))
+        row_idx += 1
         
         # Event Logs row with two buttons (View and Export)
         ttk.Button(cmd_frame, text="View Event Logs",
                   command=lambda: self.run_command("/c0 show events")).grid(row=row_idx, column=0, columnspan=1, sticky=(tk.W, tk.E), pady=2, padx=(0, 2))
         ttk.Button(cmd_frame, text="Export Event Logs",
                   command=self.export_event_logs).grid(row=row_idx, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2, padx=(2, 0))
+        row_idx += 1
+        
+        # CLEAR RAID Config button at the bottom
+        btn = ttk.Button(cmd_frame, text="⚠️ CLEAR RAID Config /c0",
+                        command=lambda: self.confirm_dangerous_command("/c0/fall delete", "⚠️ CLEAR RAID Config /c0"))
+        btn.configure(style='Danger.TButton')
+        btn.grid(row=row_idx, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=2)
         row_idx += 1
         
         # Séparateur
