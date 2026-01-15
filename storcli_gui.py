@@ -49,7 +49,6 @@ class StorCLIGUI:
         # Command buttons
         commands = [
             ("Controller Info /c0", "/c0 show", False),
-            ("RAID Status /c0", "/c0/vAll show", False),
             ("Virtual Drives Detailed", "/c0/vAll show all", False),
             ("Rebuild In Progress", "/c0/eAll/sAll show rebuild", False),
         ]
@@ -60,6 +59,11 @@ class StorCLIGUI:
                            command=lambda c=cmd: self.run_command(c))
             btn.grid(row=row_idx, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=2)
             row_idx += 1
+        
+        # RAID Status button with multiple commands
+        ttk.Button(cmd_frame, text="RAID Status /c0",
+                  command=lambda: self.run_multiple_commands(["/c0/vAll show", "/c0/vAll show bgi"])).grid(row=row_idx, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=2)
+        row_idx += 1
         
         # Show All Drives and Physical Drives Info on same row
         ttk.Button(cmd_frame, text="Show All Drives",
@@ -231,6 +235,42 @@ class StorCLIGUI:
         thread = threading.Thread(target=self._execute_command, args=(params,))
         thread.daemon = True
         thread.start()
+    
+    def run_multiple_commands(self, commands_list):
+        """Execute multiple storcli commands in sequence in a separate thread"""
+        self.storcli_path = self.path_entry.get()
+        thread = threading.Thread(target=self._execute_multiple_commands, args=(commands_list,))
+        thread.daemon = True
+        thread.start()
+    
+    def _execute_multiple_commands(self, commands_list):
+        """Execute multiple commands sequentially (in a thread)"""
+        for idx, params in enumerate(commands_list, 1):
+            try:
+                self.append_output(f"\n{'='*60}\n")
+                self.append_output(f"Command {idx}/{len(commands_list)}: {self.storcli_path} {params}\n")
+                self.append_output(f"{'='*60}\n\n")
+                
+                cmd = f'"{self.storcli_path}" {params}'
+                
+                result = subprocess.run(
+                    cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                if result.returncode == 0:
+                    self.append_output(result.stdout)
+                else:
+                    self.append_output(f"ERROR (exit code {result.returncode}):\n")
+                    self.append_output(result.stderr if result.stderr else result.stdout)
+                    
+            except subprocess.TimeoutExpired:
+                self.append_output("ERROR: Command timeout (>30 seconds)\n")
+            except Exception as e:
+                self.append_output(f"ERROR: {str(e)}\n")
         
     def run_custom_command(self):
         """Execute a custom command"""
